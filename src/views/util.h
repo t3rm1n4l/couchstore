@@ -32,9 +32,12 @@ extern "C" {
 
     typedef struct {
         uint8_t   op;
-        sized_buf k;
-        sized_buf v;
-    } view_file_merge_record_t;
+        uint16_t  ksize;
+        uint32_t  vsize;
+    } __attribute__((packed)) view_file_merge_record_t;
+
+#define VIEW_RECORD_KEY(rec) (((char *) rec) + sizeof(view_file_merge_record_t))
+#define VIEW_RECORD_VAL(rec) (VIEW_RECORD_KEY(rec) + rec->ksize)
 
     enum view_record_type {
         INITIAL_BUILD_VIEW_RECORD,
