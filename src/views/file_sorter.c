@@ -126,7 +126,9 @@ static file_sorter_error_t do_sort_file(const char *file_path,
                      write_view_record,
                      callback,
                      compare_view_records,
+                     dedup_view_records_sorter,
                      free_view_record,
                      skip_writeback,
+                     1,
                      ctx);
 }

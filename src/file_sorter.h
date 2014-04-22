@@ -54,8 +54,10 @@ extern "C" {
                                   file_merger_write_record_t write_record,
                                   file_merger_feed_record_t feed_record,
                                   file_merger_compare_records_t compare_records,
+                                  file_merger_deduplicate_records_t dedup_records,
                                   file_merger_record_free_t free_record,
                                   int skip_writeback,
+                                  int deduplicate,
                                   void *user_ctx);
 
 #ifdef __cplusplus

@@ -53,6 +53,9 @@ extern "C" {
         enum view_record_type type;
         int (*key_cmp_fun)(const sized_buf *key1, const sized_buf *key2,
                            const void *user_ctx);
+        /* A flag to toggle whether optype needs to be compared by
+         * comparator */
+        int compare_op;
         const void *user_ctx;
     } view_file_merge_ctx_t;
 
@@ -75,6 +78,11 @@ extern "C" {
     /* compare 2 view index records, obbeys the record compare function
        prototype defined in src/file_merger.h */
     int compare_view_records(const void *r1, const void *r2, void *ctx);
+
+    /* Pick the winner from the duplicate entries */
+    size_t dedup_view_records_sorter(file_merger_record_list_t *records, size_t len, void *ctx);
+
+    size_t dedup_view_records_merger(file_merger_record_list_t *records, size_t len, void *ctx);
 
     /* frees a view record, obbeys the record free function prototype
        defined in src/file_merger.h */

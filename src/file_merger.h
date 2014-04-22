@@ -39,6 +39,14 @@ extern "C" {
         FILE_MERGER_ERROR_ALLOC      = -5
     } file_merger_error_t;
 
+
+    typedef struct {
+        void *record;
+        unsigned filenum;
+    } file_merger_record_t;
+
+    typedef file_merger_record_t * file_merger_record_list_t;
+
     /*
      * Returns the length of the record read from the file on success.
      * Returns 0 when the file's EOF is reached, and a negative value
@@ -72,6 +80,12 @@ extern "C" {
     typedef file_merger_error_t (*file_merger_feed_record_t)(void *record_buffer,
                                                              void *user_ctx);
 
+    /* Among the provided records, return the winner record index */
+    typedef size_t (*file_merger_deduplicate_records_t)(
+                                    file_merger_record_list_t *records,
+                                    size_t len,
+                                    void *user_ctx);
+
     file_merger_error_t merge_files(const char *source_files[],
                                     unsigned num_files,
                                     const char *dest_file,
@@ -79,8 +93,10 @@ extern "C" {
                                     file_merger_write_record_t write_record,
                                     file_merger_feed_record_t feed_record,
                                     file_merger_compare_records_t compare_records,
+                                    file_merger_deduplicate_records_t dedup_records,
                                     file_merger_record_free_t free_record,
                                     int skip_writeback,
+                                    int deduplicate,
                                     void *user_ctx);
 
 

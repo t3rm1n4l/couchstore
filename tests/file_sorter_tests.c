@@ -259,8 +259,10 @@ static void test_file_sort(unsigned buffer_size,
                     write_record,
                     callback,
                     compare_records,
+                    NULL,
                     free_record,
                     skip_writeback,
+                    0,
                     &i);
 
     assert(ret == FILE_SORTER_SUCCESS);

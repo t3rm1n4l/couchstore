@@ -114,7 +114,6 @@ int main(int argc, char *argv[])
             for (i = 0; i < num_files; ++i) {
                 /* Ignore failures.
                    Erlang side will eventually delete the files later. */
-                remove(view_files[i]);
             }
         } else {
             status = MERGE_ERROR_CODE(error);

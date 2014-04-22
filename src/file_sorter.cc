@@ -36,21 +36,23 @@ typedef struct {
 } tmp_file_t;
 
 typedef struct {
-    const char                   *tmp_dir;
-    const char                   *source_file;
-    char                         *tmp_file_prefix;
-    unsigned                      num_tmp_files;
-    unsigned                      max_buffer_size;
-    file_merger_read_record_t     read_record;
-    file_merger_write_record_t    write_record;
-    file_merger_feed_record_t     feed_record;
-    file_merger_compare_records_t compare_records;
-    file_merger_record_free_t     free_record;
-    void                         *user_ctx;
-    FILE                         *f;
-    tmp_file_t                   *tmp_files;
-    unsigned                      active_tmp_files;
-    int                           skip_writeback;
+    const char                           *tmp_dir;
+    const char                           *source_file;
+    char                                 *tmp_file_prefix;
+    unsigned                             num_tmp_files;
+    unsigned                             max_buffer_size;
+    file_merger_read_record_t            read_record;
+    file_merger_write_record_t           write_record;
+    file_merger_feed_record_t            feed_record;
+    file_merger_compare_records_t        compare_records;
+    file_merger_deduplicate_records_t    dedup_records;
+    file_merger_record_free_t            free_record;
+    void                                 *user_ctx;
+    FILE                                 *f;
+    tmp_file_t                           *tmp_files;
+    unsigned                             active_tmp_files;
+    int                                  skip_writeback;
+    int                                  deduplicate;
 } file_sort_ctx_t;
 
 // For parallel sorter
@@ -126,8 +128,10 @@ file_sorter_error_t sort_file(const char *source_file,
                               file_merger_write_record_t write_record,
                               file_merger_feed_record_t feed_record,
                               file_merger_compare_records_t compare_records,
+                              file_merger_deduplicate_records_t dedup_records,
                               file_merger_record_free_t free_record,
                               int skip_writeback,
+                              int deduplicate,
                               void *user_ctx)
 {
     file_sort_ctx_t ctx;
@@ -151,10 +155,12 @@ file_sorter_error_t sort_file(const char *source_file,
     ctx.write_record = write_record;
     ctx.feed_record = feed_record;
     ctx.compare_records = compare_records;
+    ctx.dedup_records = dedup_records;
     ctx.free_record = free_record;
     ctx.user_ctx = user_ctx;
     ctx.active_tmp_files = 0;
     ctx.skip_writeback = skip_writeback;
+    ctx.deduplicate = deduplicate;
 
     if (skip_writeback && !feed_record) {
         return FILE_SORTER_ERROR_MISSING_CALLBACK;
@@ -571,8 +577,10 @@ static file_sorter_error_t write_record_list(void **records,
                                              tmp_file_t *tmp_file,
                                              file_sort_ctx_t *ctx)
 {
-    size_t i;
+    size_t i, j;
+    file_merger_record_list_t *duplicates;
     FILE *f;
+    size_t dup_count;
 
     sort_records(records, n, ctx);
 
@@ -593,10 +601,42 @@ static file_sorter_error_t write_record_list(void **records,
 
     for (i = 0; i < n; i++) {
         file_sorter_error_t err;
-        err = static_cast<file_sorter_error_t>((*ctx->write_record)(f, records[i], ctx->user_ctx));
-        (*ctx->free_record)(records[i], ctx->user_ctx);
-        records[i] = NULL;
 
+        if (ctx->deduplicate) {
+            dup_count = 0;
+            while (i + 1 < n) {
+                if (ctx->compare_records(records[i], records[i + 1], ctx->user_ctx)) {
+                    break;
+                }
+                dup_count++;
+                i++;
+            }
+
+            if (dup_count > 0) {
+                void *tmp;
+                duplicates = (file_merger_record_list_t *)
+                        malloc(sizeof(file_merger_record_list_t) * (dup_count + 1));
+
+                for (j = 0; j <= dup_count; j++) {
+                    duplicates[j] = (file_merger_record_list_t) calloc(1, sizeof(file_merger_record_t));
+                    duplicates[j]->record = records[i - dup_count + j];
+                }
+
+                /* Move the winner item to the righmost position */
+                j = ctx->dedup_records(duplicates, dup_count + 1, ctx->user_ctx);
+                tmp = records[i];
+                records[i] = records[i - dup_count + j];
+                records[i - dup_count + j] = tmp;
+
+                for (j = 0 ; j <= dup_count; j++) {
+                    free(duplicates[j]);
+                }
+
+                free(duplicates);
+            }
+        }
+
+        err = static_cast<file_sorter_error_t>((*ctx->write_record)(f, records[i], ctx->user_ctx));
         if (err != FILE_SORTER_SUCCESS) {
             fclose(f);
             return err;
@@ -744,8 +784,10 @@ static file_sorter_error_t merge_tmp_files(file_sort_ctx_t *ctx,
                                             ctx->write_record,
                                             feed_record,
                                             ctx->compare_records,
+                                            ctx->dedup_records,
                                             ctx->free_record,
                                             ctx->skip_writeback,
+                                            ctx->deduplicate,
                                             ctx->user_ctx);
 
     free(files);
